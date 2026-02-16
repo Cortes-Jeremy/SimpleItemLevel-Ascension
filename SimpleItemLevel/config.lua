@@ -277,12 +277,14 @@ function ns:SetupConfig()
 
         local checkboxes = {
             {"bags", BAGSLOTTEXT},
-            {"character", ORDER_HALL_EQUIPMENT_SLOTS},
-            {"character_inset", "   show levels inside the frame", "Instead of being overlaid on the item"},
-            {"flyout", "Equipment flyouts"},
-            {"inspect", INSPECT},
-            {"inspect_inset", "   show levels inside the frame", "Instead of being overlaid on the item"},
+            {"merchants", "Merchants Vendors"},
+            {"auctions", "Auction house"},
             {"loot", LOOT},
+            {"character", ORDER_HALL_EQUIPMENT_SLOTS},
+                {"character_inset", "   show levels inside the frame", "Instead of being overlaid on the item"},
+                {"flyout", "   Equipment flyouts"},
+            {"inspect", INSPECT},
+                {"inspect_inset", "   show levels inside the frame", "Instead of being overlaid on the item"},
             {"characteravg", "Character average item level"},
             {"inspectavg", "Inspect average item level"},
         }
@@ -295,7 +297,7 @@ function ns:SetupConfig()
         last = makeCheckboxList(frame, {
             {false, "Selectiveness"},
             {"equipment", "Show on equippable items"},
-            {"battlepets", "Show on battle pets"},
+            -- {"battlepets", "Show on battle pets"},
             {"reagents", "Show on crafting reagents"},
             {"misc", "Show on anything else"},
         }, last, refresh)

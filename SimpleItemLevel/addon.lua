@@ -107,6 +107,8 @@ ns.defaults = {
     inspect = true,
     inspect_inset = false,
     bags = true,
+    merchants = true,
+    auctions = true,
     loot = true,
     flyout = true,
     tooltip = true,
@@ -248,6 +250,7 @@ local function CleanButton(button, suppress)
     if button.simpleilvlup and not suppress.upgrade then button.simpleilvlup:Hide() end
     if button.simpleilvlmissing and not suppress.missing then button.simpleilvlmissing:Hide() end
     if button.simpleilvlbound and not suppress.bound then button.simpleilvlbound:Hide() end
+    if button.simpleilvlenchant and not suppress.enchant then button.simpleilvlenchant:Hide() end
 end
 ns.CleanButton = CleanButton
 
@@ -348,6 +351,9 @@ end
 
 local function AddEnchantToButton(button, link, variant)
     if not button.simpleilvlenchant then return end
+    --[[ if not db.showEnchants then
+        return button.simpleilvlenchant and button.simpleilvlenchant:Hide()
+    end ]]
 
     if not ((variant == "character" and db.character_inset) or (variant == "inspect" and db.inspect_inset))then
         button.simpleilvlenchant:Hide()
@@ -416,44 +422,41 @@ local function ShouldShowOnItem(item)
     return db.misc
 end
 
-local function colorizeButton(button, quality)
-    if quality then
-        if quality > 1 then
-            -- Rare, Epic, etc.
-            SetItemButtonQuality(button, quality)
+local function ApplyItemQualityVisual(button, quality)
+    if not button then return end
 
-            if button.icon then
-                button.icon:SetDesaturated(false)
-                button.icon:SetVertexColor(1, 1, 1)
-                button.icon:SetAlpha(1)
-            end
+    local icon = button.icon or button.Icon or button.IconTexture or _G[button:GetName().."IconTexture"]
+    if not icon then return end
 
-        elseif quality == 1 then
-            -- Common (blanc) → reset bordure + icône normale
-            if button.IconBorder then
-                button.IconBorder:Hide()
-            end
+    if quality and quality > 1 then
+        -- Uncommon / Rare / Epic
+        SetItemButtonQuality(button, quality)
+        SetItemButtonDesaturated(button, false)
+        SetItemButtonTextureVertexColor(button, 1, 1, 1)
+        SetItemButtonNormalTextureVertexColor(button, 1, 1, 1)
 
-            if button.icon then
-                button.icon:SetDesaturated(false)
-                button.icon:SetVertexColor(1, 1, 1)
-                button.icon:SetAlpha(1)
-            end
+    elseif quality == 1 then
+        -- Common (blanc) → reset total
+        SetItemButtonQuality(button, nil)
+        SetItemButtonDesaturated(button, false)
+        SetItemButtonTextureVertexColor(button, 1, 1, 1)
+        SetItemButtonNormalTextureVertexColor(button, 1, 1, 1)
 
-        elseif quality == 0 then
-            -- Poor (gris) → icône grisée
-            if button.IconBorder then
-                button.IconBorder:Hide()
-            end
+    elseif quality == 0 then
+        -- Poor (gris)
+        SetItemButtonQuality(button, nil)
+        SetItemButtonDesaturated(button, true, 0.5, 0.5, 0.5)
+        SetItemButtonNormalTextureVertexColor(button, 0.7, 0.7, 0.7)
 
-            if button.icon then
-                button.icon:SetDesaturated(true)
-                button.icon:SetVertexColor(0.5, 0.5, 0.5)
-                button.icon:SetAlpha(0.8) -- ajuste si tu veux plus opaque
-            end
-        end
+    else
+        -- fallback sécurité
+        SetItemButtonQuality(button, nil)
+        SetItemButtonDesaturated(button, false)
+        SetItemButtonTextureVertexColor(button, 1, 1, 1)
+        SetItemButtonNormalTextureVertexColor(button, 1, 1, 1)
     end
 end
+
 
 local blank = {}
 local function UpdateButtonFromItem(button, item, variant, suppress)
@@ -466,7 +469,7 @@ local function UpdateButtonFromItem(button, item, variant, suppress)
 
         -- TEMP
         local itemInfos = GetItemInfoInstant(item:GetItemID())
-        colorizeButton(button, itemInfos.quality)
+        ApplyItemQualityVisual(button, itemInfos.quality)
         -- //
 
         if not ShouldShowOnItem(item) then return end
@@ -770,7 +773,7 @@ ns:RegisterAddonHook("Blizzard_AuctionUI", function()
 
     -- Browse tab
     hooksecurefunc("AuctionFrameBrowse_Update", function()
-        if not db.bags then return end
+        if not db.auctions then return end
 
         local numItems = GetNumAuctionItems("list")
         for i = 1, NUM_BROWSE_TO_DISPLAY do
@@ -792,7 +795,7 @@ ns:RegisterAddonHook("Blizzard_AuctionUI", function()
 
     -- Bid tab
     hooksecurefunc("AuctionFrameBid_Update", function()
-        if not db.bags then return end
+        if not db.auctions then return end
 
         local numItems = GetNumAuctionItems("bidder")
         for i = 1, NUM_BIDS_TO_DISPLAY do
@@ -814,7 +817,7 @@ ns:RegisterAddonHook("Blizzard_AuctionUI", function()
 
     -- Auctions tab
     hooksecurefunc("AuctionFrameAuctions_Update", function()
-        if not db.bags then return end
+        if not db.auctions then return end
 
         local numItems = GetNumAuctionItems("owner")
         for i = 1, NUM_AUCTIONS_TO_DISPLAY do
@@ -839,7 +842,7 @@ end)
 -- Group Loot Roll
 
 local function UpdateGroupLootButton(frame)
-    -- if not db.loot then return end
+    if not db.loot then return end
     local IconFrame = _G[frame:GetName().."IconFrame"]
     if not frame or not IconFrame then return end
 
@@ -869,18 +872,34 @@ end)
 -- Merchant Frame
 
 local function UpdateMerchantButton(button)
-    if not db.bags then return end
+    if not db.merchants then return end
     if not button or not button:IsShown() then return end
+
+    local index = button:GetID()
+    local _, _, _, _, numAvailable, isUsable = GetMerchantItemInfo(index)
 
     CleanButton(button)
 
-    local itemLink = GetMerchantItemLink(button:GetID())
+    local itemLink = GetMerchantItemLink(index)
     if not itemLink then return end
 
     local item = Item:CreateFromItemLink(itemLink)
     if not item then return end
 
-    UpdateButtonFromItem(button, item, "merchant")
+    UpdateButtonFromItem(button, item, "merchant", { missing = true })
+
+    if numAvailable == 0 then
+        if not isUsable then
+            SetItemButtonTextureVertexColor(button, 0.5, 0, 0)
+            SetItemButtonNormalTextureVertexColor(button, 0.5, 0, 0)
+        else
+            SetItemButtonTextureVertexColor(button, 0.5, 0.5, 0.5)
+            SetItemButtonNormalTextureVertexColor(button, 0.5, 0.5, 0.5)
+        end
+    elseif not isUsable then
+        SetItemButtonTextureVertexColor(button, 0.9, 0, 0)
+        SetItemButtonNormalTextureVertexColor(button, 0.9, 0, 0)
+    end
 end
 
 local function UpdateAllMerchantButtons()
@@ -898,23 +917,76 @@ hooksecurefunc("MerchantFrame_UpdateMerchantInfo", UpdateAllMerchantButtons)
 -- Adibags
 ns:RegisterAddonHook("AdiBags", function()
     local AdiBags = LibStub("AceAddon-3.0"):GetAddon("AdiBags")
+    local searchModule = AdiBags:GetModule("SearchHighlight", true)
+
+    local function IsItemSearchFiltered(button)
+        if not (searchModule and searchModule:IsEnabled() and searchModule.widget) then
+            return false
+        end
+
+        local searchText = searchModule.widget:GetText()
+        if not searchText or searchText:trim() == "" then
+            return false
+        end
+
+        local itemName = GetItemInfo(button.itemId)
+        return itemName and not itemName:lower():match(searchText:lower():trim())
+    end
+
+    local function ApplySearchFilter(button)
+        SetItemButtonDesaturated(button, false)
+        button.IconTexture:SetVertexColor(0.2, 0.2, 0.2)
+        button.IconBorder:Hide()
+        button.IconQuestTexture:Hide()
+        button.Count:Hide()
+        button.Stock:Hide()
+    end
+
+    local function ReapplyPoorQuality(button)
+        if button.__itemQuality == 0 then
+            SetItemButtonDesaturated(button, true, 0.5, 0.5, 0.5)
+            SetItemButtonNormalTextureVertexColor(button, 0.7, 0.7, 0.7)
+            button.IconTexture:SetVertexColor(0.5, 0.5, 0.5)
+        end
+    end
+
     AdiBags.RegisterMessage(ns, "AdiBags_UpdateButton", function(event, button)
+        if not (db.bags and button.hasItem) then
+            CleanButton(button)
+            return
+        end
+
         CleanButton(button)
 
-        if not db.bags then
-            return
-        end
-
-        -- AdiBags fournit directement les infos nécessaires
-        if not button.hasItem then
-            return
-        end
-
-        -- Créer l'item depuis le bag et slot
         local item = Item:CreateFromBagAndSlot(button.bag, button.slot)
+        if not item then return end
 
-        if item then
-            UpdateButtonFromItem(button, item, "bags")
+        local isSearchFiltered = IsItemSearchFiltered(button)
+        local itemInfos = GetItemInfoInstant(item:GetItemID())
+
+        if itemInfos and itemInfos.quality ~= nil then
+            button.__itemQuality = itemInfos.quality
+
+            if not isSearchFiltered then
+                ApplyItemQualityVisual(button, itemInfos.quality)
+                UpdateButtonFromItem(button, item, "bags")
+            end
+        end
+
+        if isSearchFiltered then
+            ApplySearchFilter(button)
+        end
+    end)
+
+    AdiBags.RegisterMessage(ns, "AdiBags_UpdateLock", function(event, button)
+        if db.bags and button.hasItem and not AdiBags.globalLock then
+            ReapplyPoorQuality(button)
+        end
+    end)
+
+    AdiBags.RegisterMessage(ns, "AdiBags_UpdateBorder", function(event, button)
+        if db.bags and button.hasItem then
+            ReapplyPoorQuality(button)
         end
     end)
 end)
