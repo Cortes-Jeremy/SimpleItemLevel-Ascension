@@ -871,30 +871,19 @@ end)
 
 -- Merchant Frame
 
-local function UpdateMerchantButton(button)
-    if not db.merchants then return end
-    if not button or not button:IsShown() then return end
+local function ResetMerchantButtonColors(button)
+    SetItemButtonTextureVertexColor(button, 1, 1, 1)
+    SetItemButtonNormalTextureVertexColor(button, 1, 1, 1)
+    SetItemButtonQuality(button, 0)
+end
 
-    local index = button:GetID()
-    local _, _, _, _, numAvailable, isUsable = GetMerchantItemInfo(index)
-
-    CleanButton(button)
-
-    local itemLink = GetMerchantItemLink(index)
-    if not itemLink then return end
-
-    local item = Item:CreateFromItemLink(itemLink)
-    if not item then return end
-
-    UpdateButtonFromItem(button, item, "merchant", { missing = true })
-
+local function ApplyMerchantButtonColors(button, numAvailable, isUsable)
     if numAvailable == 0 then
         if not isUsable then
             SetItemButtonTextureVertexColor(button, 0.5, 0, 0)
             SetItemButtonNormalTextureVertexColor(button, 0.5, 0, 0)
         else
-            SetItemButtonTextureVertexColor(button, 0.5, 0.5, 0.5)
-            SetItemButtonNormalTextureVertexColor(button, 0.5, 0.5, 0.5)
+            ResetMerchantButtonColors(button)
         end
     elseif not isUsable then
         SetItemButtonTextureVertexColor(button, 0.9, 0, 0)
@@ -902,17 +891,62 @@ local function UpdateMerchantButton(button)
     end
 end
 
+local function UpdateMerchantButton(button, itemLink, numAvailable, isUsable)
+    if not db.merchants then return end
+    if not button or not button:IsShown() then return end
+
+    ResetMerchantButtonColors(button)
+    CleanButton(button)
+    if not itemLink then return end
+
+    local item = Item:CreateFromItemLink(itemLink)
+    if not item then return end
+
+    UpdateButtonFromItem(button, item, "merchant", { missing = true })
+    ApplyMerchantButtonColors(button, numAvailable or 0, isUsable)
+end
+
 local function UpdateAllMerchantButtons()
     for i = 1, MERCHANT_ITEMS_PER_PAGE do
         local button = _G["MerchantItem"..i.."ItemButton"]
         if button then
-            UpdateMerchantButton(button)
+            local _, _, _, _, numAvailable, isUsable = GetMerchantItemInfo(i)
+            UpdateMerchantButton(button, GetMerchantItemLink(i), numAvailable, isUsable)
+        end
+    end
+    -- Bouton buyback unique visible dans l'onglet marchand
+    local buybackButton = _G["MerchantBuyBackItemItemButton"]
+    if buybackButton and buybackButton:IsShown() then
+        local numItems = GetNumBuybackItems()
+        if numItems > 0 then
+            local _, _, _, _, _, isUsable = GetBuybackItemInfo(numItems)
+            UpdateMerchantButton(buybackButton, GetBuybackItemLink(numItems), 1, isUsable)
+        else
+            ResetMerchantButtonColors(buybackButton)
+            CleanButton(buybackButton)
+        end
+    end
+end
+
+local function UpdateAllBuybackButtons()
+    local numItems = GetNumBuybackItems()
+    for i = 1, BUYBACK_ITEMS_PER_PAGE do
+        local button = _G["MerchantItem"..i.."ItemButton"]
+        if button then
+            if i <= numItems then
+                local _, _, _, _, _, isUsable = GetBuybackItemInfo(i)
+                UpdateMerchantButton(button, GetBuybackItemLink(i), 1, isUsable)
+            else
+                ResetMerchantButtonColors(button)
+                CleanButton(button)
+            end
         end
     end
 end
 
 hooksecurefunc("MerchantFrame_OnShow", UpdateAllMerchantButtons)
 hooksecurefunc("MerchantFrame_UpdateMerchantInfo", UpdateAllMerchantButtons)
+hooksecurefunc("MerchantFrame_UpdateBuybackInfo", UpdateAllBuybackButtons)
 
 -- Adibags
 ns:RegisterAddonHook("AdiBags", function()
