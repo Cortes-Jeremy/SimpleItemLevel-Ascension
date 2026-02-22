@@ -468,8 +468,8 @@ local function UpdateButtonFromItem(button, item, variant, suppress)
     item:ContinueOnItemLoad(function()
 
         -- TEMP
-        local itemInfos = GetItemInfoInstant(item:GetItemID())
-        ApplyItemQualityVisual(button, itemInfos.quality)
+        local quality = select(3, GetItemInfo(item:GetInstanceItemLink(item.equipmentUnit)))
+        ApplyItemQualityVisual(button, quality)
         -- //
 
         if not ShouldShowOnItem(item) then return end
@@ -907,11 +907,15 @@ local function UpdateMerchantButton(button, itemLink, numAvailable, isUsable)
 end
 
 local function UpdateAllMerchantButtons()
+    local page = MerchantFrame.page or 1
+    local offset = (page - 1) * MERCHANT_ITEMS_PER_PAGE
+
     for i = 1, MERCHANT_ITEMS_PER_PAGE do
         local button = _G["MerchantItem"..i.."ItemButton"]
         if button then
-            local _, _, _, _, numAvailable, isUsable = GetMerchantItemInfo(i)
-            UpdateMerchantButton(button, GetMerchantItemLink(i), numAvailable, isUsable)
+            local index = offset + i
+            local _, _, _, _, numAvailable, isUsable = GetMerchantItemInfo(index)
+            UpdateMerchantButton(button, GetMerchantItemLink(index), numAvailable, isUsable)
         end
     end
     -- Bouton buyback unique visible dans l'onglet marchand
